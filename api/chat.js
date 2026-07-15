@@ -18,10 +18,9 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: "config", message: "No API key found on the server." });
+  const key = process.env.CX_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!key) return res.status(500).json({ message: "The intelligence is resting. Try again shortly." });
 
-  // --- parse body defensively (Vercel may hand us an object, a string, or a stream) ---
   let body = req.body;
   if (typeof body === "string") {
     try { body = JSON.parse(body); } catch (e) { body = null; }
@@ -39,12 +38,12 @@ module.exports = async (req, res) => {
 
   const messages = (body && body.messages) || [];
   if (!Array.isArray(messages) || messages.length === 0) {
-    return res.status(400).json({ error: "nobody", message: "No message received." });
+    return res.status(400).json({ message: "Say a little more, and I'll read it." });
   }
 
   const userTurns = messages.filter((m) => m.role === "user").length;
   if (userTurns > 4) {
-    return res.status(429).json({ error: "limit", message: "You've used all four free readings." });
+    return res.status(429).json({ message: "You've used all four free readings." });
   }
 
   const clean = messages.slice(-8).map((m) => ({
@@ -68,27 +67,19 @@ module.exports = async (req, res) => {
       }),
     });
 
-    const raw = await r.text();
-
     if (!r.ok) {
-      return res.status(200).json({ text: "DEBUG upstream " + r.status + ": " + raw.slice(0, 400) });
+      return res.status(502).json({ message: "The intelligence is resting for a moment. Try once more." });
     }
 
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      return res.status(200).json({ text: "DEBUG unparseable: " + raw.slice(0, 300) });
-    }
-
+    const data = await r.json();
     const text = (data.content || [])
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("\n")
       .trim();
 
-    return res.status(200).json({ text: text || "DEBUG empty reply" });
+    return res.status(200).json({ text: text || "Say that once more, and I'll read it." });
   } catch (e) {
-    return res.status(200).json({ text: "DEBUG threw: " + String((e && e.message) || e).slice(0, 300) });
+    return res.status(500).json({ message: "The connection wavered. Send that once more." });
   }
 };

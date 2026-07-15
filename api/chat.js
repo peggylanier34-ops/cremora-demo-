@@ -19,19 +19,37 @@ module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: "Server not configured" });
+  if (!key) return res.status(500).json({ error: "config", message: "No API key found on the server." });
 
-  const messages = (req.body && req.body.messages) || [];
-  if (!Array.isArray(messages) || messages.length === 0)
-    return res.status(400).json({ error: "No messages" });
+  // --- parse body defensively (Vercel may hand us an object, a string, or a stream) ---
+  let body = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch (e) { body = null; }
+  }
+  if (!body || typeof body !== "object") {
+    try {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const raw = Buffer.concat(chunks).toString("utf8");
+      body = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      body = {};
+    }
+  }
+
+  const messages = (body && body.messages) || [];
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "nobody", message: "No message received." });
+  }
 
   const userTurns = messages.filter((m) => m.role === "user").length;
-  if (userTurns > 4)
+  if (userTurns > 4) {
     return res.status(429).json({ error: "limit", message: "You've used all four free readings." });
+  }
 
   const clean = messages.slice(-8).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: String(m.content || "").slice(0, 1500),
+    content: String((m && m.content) || "").slice(0, 1500),
   }));
 
   try {
@@ -49,18 +67,28 @@ module.exports = async (req, res) => {
         messages: clean,
       }),
     });
+
+    const raw = await r.text();
+
     if (!r.ok) {
-      const detail = await r.text();
-      return res.status(502).json({ error: "upstream", detail: detail.slice(0, 300) });
+      return res.status(200).json({ text: "DEBUG upstream " + r.status + ": " + raw.slice(0, 400) });
     }
-    const data = await r.json();
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return res.status(200).json({ text: "DEBUG unparseable: " + raw.slice(0, 300) });
+    }
+
     const text = (data.content || [])
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("\n")
       .trim();
-    return res.status(200).json({ text });
+
+    return res.status(200).json({ text: text || "DEBUG empty reply" });
   } catch (e) {
-    return res.status(500).json({ error: "network" });
+    return res.status(200).json({ text: "DEBUG threw: " + String((e && e.message) || e).slice(0, 300) });
   }
 };

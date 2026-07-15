@@ -41,6 +41,14 @@
   .intro h1{font-family:'Fraunces',serif;font-weight:300;font-size:clamp(26px,6vw,36px);line-height:1.15;}
   .intro h1 em{font-style:italic;color:var(--brass-bright);}
   .intro p{margin-top:14px;color:var(--bone-dim);font-size:14.5px;max-width:40ch;margin-left:auto;margin-right:auto;}
+  .chips{margin-top:28px;display:flex;flex-direction:column;gap:10px;align-items:center;}
+  .chip{
+    border:1px solid var(--line);background:transparent;color:var(--bone);
+    padding:12px 22px;border-radius:24px;font-size:13.5px;font-family:'Inter',sans-serif;
+    cursor:pointer;transition:border-color .2s ease,color .2s ease;max-width:100%;
+  }
+  .chip:hover{border-color:var(--brass);color:var(--brass-bright);}
+  .chips .chint{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--bone-dim);margin-bottom:2px;}
 
   .msg{margin-bottom:22px;}
   .msg .who{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:7px;}
@@ -104,6 +112,12 @@
       <span class="label">The Intelligence</span>
       <h1 style="margin-top:14px;">Tell me <em>where you are</em>, and I'll read it.</h1>
       <p>Four readings, free, no account. Say what season you're in, or just how today feels — and begin.</p>
+      <div class="chips">
+        <span class="chint">Or begin here</span>
+        <button type="button" class="chip" data-q="I think I'm in my Winter this week.">I think I'm in my Winter</button>
+        <button type="button" class="chip" data-q="I feel scattered today — help me come back to myself.">I feel scattered today</button>
+        <button type="button" class="chip" data-q="Where should my energy go this week?">Where should my energy go this week?</button>
+      </div>
     </div>
   </div>
 </main>
@@ -226,6 +240,13 @@
   input.addEventListener("input", ()=>{
     input.style.height = "auto";
     input.style.height = Math.min(120, input.scrollHeight) + "px";
+  });
+
+  document.querySelectorAll(".chip").forEach((c)=>{
+    c.addEventListener("click", ()=>{
+      input.value = c.dataset.q;
+      send();
+    });
   });
 
   if(remaining() <= 0){ showWall(); }
